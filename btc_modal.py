@@ -116,6 +116,72 @@ def run_base_filter(r):
     return states, vol_ukf, vol_ewma, mu_h
 
 
+def run_6state_filter(r):
+    """
+    6-state UKF: extends the 5-state model with a time-varying drift state mu_t.
+
+    State vector: [p1, v1, p2, v2, h, mu]
+        (p1, v1) : slow damped oscillator  (~30-day cycle)
+        (p2, v2) : fast damped oscillator  (~5-day cycle)
+        h        : log-variance AR(1) — latent stochastic volatility
+        mu       : time-varying return drift (random walk, ~0.1%/day noise)
+
+    Adding mu separates persistent trend from oscillatory cycles so that p2
+    becomes a cleaner mean-reversion signal.  The key effect: during a bull
+    run mu_t drifts positive and absorbs the trend; p1/p2 track only the
+    cyclical residual around that trend, reducing spurious fade signals.
+
+    Observation (dual, identical to 5-state):
+        z1 = mu + p1 + p2 + eps,    eps  ~ N(0, exp(h))
+        z2 = log(r^2) ≈ h − 1.27 + eta, eta ~ N(0, π²/2)
+
+    Returns
+    -------
+    states : (n, 6) filtered state array   [p1, v1, p2, v2, h, mu]
+    vol_6  : (n,)   filtered volatility    exp(h/2)
+    mu_h   : float  unconditional log-variance mean
+    """
+    n      = len(r)
+    mu_h   = 2 * np.log(r.std())
+    phi    = 0.95
+    sig_mu = 0.001   # drift process noise: ~0.1%/day → slow trend adaptation
+
+    A1 = damped_osc_matrix(2 * np.pi / 30.0, 0.15)
+    A2 = damped_osc_matrix(2 * np.pi / 5.0,  0.35)
+
+    def fx(state, dt):
+        p1, v1, p2, v2, h, mu = state
+        p1n, v1n = A1 @ np.array([p1, v1])
+        p2n, v2n = A2 @ np.array([p2, v2])
+        hn       = mu_h + phi * (h - mu_h)
+        return np.array([p1n, v1n, p2n, v2n, hn, mu])   # mu is a pure random walk
+
+    def hx(state):
+        p1, _, p2, _, h, mu = state
+        return np.array([mu + p1 + p2, h - 1.27])       # drift enters the return obs
+
+    sp  = MerweScaledSigmaPoints(n=6, alpha=1e-3, beta=2.0, kappa=0.0)
+    ukf = UnscentedKalmanFilter(
+        dim_x=6, dim_z=2, dt=DT, fx=fx, hx=hx, points=sp
+    )
+    ukf.x = np.array([0.0, 0.0, 0.0, 0.0, mu_h, 0.0])
+    ukf.P = np.diag([1e-4, 1e-4, 1e-4, 1e-4, 0.1, 1e-6])
+    ukf.Q = np.diag([1e-6, 1e-5, 1e-5, 1e-4, 0.05, sig_mu ** 2])
+
+    states = np.zeros((n, 6))
+    for t in range(n):
+        h_est = ukf.x[4]
+        ukf.R = np.array([
+            [np.exp(h_est), 0.0],
+            [0.0, np.pi ** 2 / 2.0],
+        ])
+        ukf.predict()
+        ukf.update(np.array([r[t], np.log(r[t] ** 2 + 1e-8)]))
+        states[t] = ukf.x
+
+    return states, np.exp(states[:, 4] / 2), mu_h
+
+
 def run_student_t_filter(r, nu=5, n_iter=8):
     """
     5-state UKF with Student-t observation noise via variational Bayes.

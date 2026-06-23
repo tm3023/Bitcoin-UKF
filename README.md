@@ -14,7 +14,7 @@ Bitcoin's daily volatility ranges between approximately 20% annualised during qu
 - **Options pricing:** the implied volatility surface is priced off a conditional variance forecast; errors here misprice every contract in the book
 - **Portfolio construction:** volatility-adjusted weights are only meaningful if the volatility estimate tracks realised conditions
 
-The prevailing industry standard is GARCH, which sets the conditional variance as a weighted average of the previous forecast and the previous squared return. GARCH is computationally efficient and theoretically well-grounded, but it is backward-looking by construction: it follows volatility rather than anticipating it, and consistently lags during regime transitions.
+The prevailing industry standard is GARCH, which sets the conditional variance as a weighted average of the previous forecast and the previous squared return. GARCH is computationally efficient and theoretically well-grounded, but it is backward-looking by construction: it follows volatility rather than anticipating it and consistently lags during regime transitions.
 
 This project evaluates whether a probabilistic state-space model, estimated by maximum likelihood on BTC data, can improve on GARCH. The 5-state UKF achieves a **correlation of 0.40 with realised volatility versus 0.25 for the best GARCH variant**, alongside lower absolute forecast error on every metric tested.
 
@@ -64,7 +64,7 @@ The Corr metric is the most practically significant. Accurately ranking the *tim
 
 ![Price and Volatility](plots/vol_comparison.png)
 
-**Top panel:** BTC price (log scale, right axis) with the UKF's annualised conditional volatility as the shaded band (left axis). The band expands around the 2022 drawdown and the 2021 all-time high, and contracts during subsequent quiet periods, illustrating that the filter updates its volatility estimate from the current hidden state rather than from lagged squared returns alone.
+**Top panel:** BTC price (log scale, right axis) with the UKF's annualised conditional volatility as the shaded band (left axis). The band expands around the 2022 drawdown and the 2021 all-time high and contracts during subsequent quiet periods, illustrating that the filter updates its volatility estimate from the current hidden state rather than from lagged squared returns alone.
 
 **Middle panel:** UKF conditional volatility (blue) versus the EWMA benchmark (orange dashed) over the full sample. The shaded region marks the out-of-sample window. The UKF responds more decisively at regime transitions, while EWMA attenuates and lags these shifts.
 
@@ -140,7 +140,7 @@ With the estimated phi = 0.949, the half-life of a volatility shock is approxima
 
 ### Dual-observation design
 
-A single return observation leaves the log-variance state structurally unidentifiable: infinitely many (cycle, volatility) combinations are consistent with any observed return. The observation vector is therefore augmented with a log-realised-variance proxy using the Harvey, Ruiz, and Shephard (1994) log-linearisation:
+A single return observation leaves the log-variance state structurally unidentifiable: infinitely many (cycle, volatility) combinations are consistent with any observed return. The observation vector is therefore augmented with a log-realised-variance proxy using the Harvey, Ruiz and Shephard (1994) log-linearisation:
 
 ```
 z1  =  p1 + p2 + eps_t,     eps_t ~ N(0, exp(h_t))       [daily log-return]
@@ -197,7 +197,7 @@ See `compare_models.py` for the full comparison.
 
 # Part 2: Mean Reversion Signal Exploration
 
-The latent states produced by the UKF (the log-variance `h_t`, the fast-cycle position `p2_t`, and, in the 6-state extension, the drift state `mu_t`) contain information that a rolling volatility window cannot access. This section evaluates whether that information supports a systematic mean-reversion strategy, comparing two UKF-based approaches against a rolling z-score baseline on a strictly held-out out-of-sample period.
+The latent states produced by the UKF (the log-variance `h_t`, the fast-cycle position `p2_t` and, in the 6-state extension, the drift state `mu_t`) contain information that a rolling volatility window cannot access. This section evaluates whether that information supports a systematic mean-reversion strategy, comparing two UKF-based approaches against a rolling z-score baseline on a strictly held-out out-of-sample period.
 
 ## Data
 
@@ -364,7 +364,7 @@ The decomposition table clarifies the sources of this improvement. Condition (1)
 
 - The **low-volatility regime filter** alone (row 2) adds little in isolation (+0.06% mean return), but is a prerequisite for the cycle condition to be informative.
 - **Cycle alignment** (row 4) raises mean return to +0.89% and win rate to 58.8%.
-- Combining **low-vol and cycle** (row 5, Strategy B) achieves +1.19% mean return, 63.3% win rate, and t=1.80. Both signals are uniquely available from the UKF; neither can be derived from a rolling window.
+- Combining **low-vol and cycle** (row 5, Strategy B) achieves +1.19% mean return, 63.3% win rate and t=1.80. Both signals are uniquely available from the UKF; neither can be derived from a rolling window.
 
 A critical finding specific to Bitcoin is that the **direction of the vol-regime effect is reversed relative to equity markets**. Conditioning on the high-volatility regime (row 3) produces a *negative* mean fade return (-0.12%), confirming that BTC's high-volatility periods are characterised by momentum and trend continuation rather than mean reversion. The UKF's `h_t` state correctly partitions these regimes.
 
@@ -372,9 +372,9 @@ A critical finding specific to Bitcoin is that the **direction of the vol-regime
 
 ### Does the 6-state slope filter improve on the 5-state?
 
-Not on this out-of-sample sample. The 6-state base conditions (row 6) produce results nearly identical to the 5-state (row 5): the same signal count (n=30), a slightly lower mean return (+1.05% versus +1.19%), and a slightly lower t-statistic (1.56 versus 1.80). Adding the slope filter (row 7, Strategy C) reduces signal count to 23 and further lowers mean return to +0.83%, reducing the Sharpe ratio from 0.70 to 0.30.
+Not on this out-of-sample sample. The 6-state base conditions (row 6) produce results nearly identical to the 5-state (row 5): the same signal count (n=30), a slightly lower mean return (+1.05% versus +1.19%) and a slightly lower t-statistic (1.56 versus 1.80). Adding the slope filter (row 7, Strategy C) reduces signal count to 23 and further lowers mean return to +0.83%, reducing the Sharpe ratio from 0.70 to 0.30.
 
-The slope filter appears to remove some of the 5-state model's most profitable signals. The likely explanation is that the low-volatility regime condition (condition 1) already selects for non-trending market states. By construction, when `h_{t-1} <= mu_h`, the market is in a quiet regime where the drift state `mu_t` tends to be small. The slope filter then excludes a subset of observations where drift is slightly elevated but the market is still effectively range-bound, and these prove to be genuine mean-reversion opportunities.
+The slope filter appears to remove some of the 5-state model's most profitable signals. The likely explanation is that the low-volatility regime condition (condition 1) already selects for non-trending market states. By construction, when `h_{t-1} <= mu_h`, the market is in a quiet regime where the drift state `mu_t` tends to be small. The slope filter then excludes a subset of observations where drift is slightly elevated but the market is still effectively range-bound and these prove to be genuine mean-reversion opportunities.
 
 The conclusion is that the 5-state model's conditions are better calibrated for this signal than the 6-state extension over this evaluation period. The drift state `mu_t` has interpretive value as a real-time trend indicator but does not improve signal quality when the volatility regime filter is already applied.
 
@@ -389,7 +389,7 @@ No strategy achieves conventional 5% significance (abs(t) >= 1.96). Strategy B's
 
 Directions that would strengthen statistical power and potentially signal quality:
 
-1. **Extended holding period.** A three-to-five-day hold captures the full approximately five-day fast-cycle arc, reduces the cost burden per trade by approximately three-fold, and accumulates statistical evidence without requiring additional calendar time.
+1. **Extended holding period.** A three-to-five-day hold captures the full approximately five-day fast-cycle arc, reduces the cost burden per trade by approximately three-fold and accumulates statistical evidence without requiring additional calendar time.
 2. **MLE-fitted 6-state model.** The drift noise parameter `sigma_mu = 0.001 per day` is currently set by hand. Estimating it via prediction-error decomposition would allow the data to determine the appropriate responsiveness of the drift state, potentially improving the slope filter's selectivity.
 3. **Intraday volatility data.** The dual-observation design currently uses `log(r^2)` as a daily volatility proxy. Substituting realised variance computed from higher-frequency returns would provide a substantially cleaner signal to the log-variance state, likely improving regime identification at transition points.
 
@@ -464,4 +464,4 @@ Dependencies: `filterpy`, `numpy`, `scipy`, `matplotlib`, `yfinance`, `arch`, `j
 
 ## Background
 
-This project was developed as a personal research exercise in applying state-space methods to cryptocurrency markets. The identifiability problem and its dual-observation resolution are discussed in detail in the accompanying notebook. The GARCH benchmark and Student-t filter comparison provide quantitative context for the UKF's performance relative to established alternatives. The mean-reversion backtest in Part 2 is a natural extension: the UKF's latent states are candidate alpha signals, and this section evaluates that hypothesis on live out-of-sample data.
+This project was developed as a personal research exercise in applying state-space methods to cryptocurrency markets. The identifiability problem and its dual-observation resolution are discussed in detail in the accompanying notebook. The GARCH benchmark and Student-t filter comparison provide quantitative context for the UKF's performance relative to established alternatives. The mean-reversion backtest in Part 2 is a natural extension: the UKF's latent states are candidate alpha signals and this section evaluates that hypothesis on out-of-sample data.

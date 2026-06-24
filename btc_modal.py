@@ -182,6 +182,103 @@ def run_6state_filter(r):
     return states, np.exp(states[:, 4] / 2), mu_h
 
 
+def run_heavy_process_filter(r, nu_q=5):
+    """
+    5-state UKF with Student-t process noise on the log-variance state h_t.
+
+    At each step the process noise on h_t is scaled by 1/lambda_q, where
+    lambda_q is estimated from the previous step's observation innovation
+    using the VB scale-mixture update:
+
+        lambda_q = (nu_q + k) / (nu_q + v' S^{-1} v)
+
+    where v is the observation innovation vector, S its covariance, and k=2
+    the observation dimension.  Large innovations (large Mahalanobis distance)
+    produce small lambda_q, inflating Q[4,4] and letting the filter make
+    larger, more abrupt updates to h_t.  This is the process-noise analogue
+    of the Student-t observation-noise VB filter: whereas that mechanism
+    downweights outliers (preventing h from updating), this one does the
+    opposite -- it uses outliers as evidence of a volatility regime jump
+    and increases the filter's willingness to revise h_t.
+
+    Parameters
+    ----------
+    r    : array of daily log-returns
+    nu_q : degrees of freedom for the process noise scale distribution
+           (lower = heavier tails = more Q inflation on large innovations)
+
+    Returns
+    -------
+    states   : (n, 5) filtered state array
+    vol_hp   : (n,) filtered volatility  exp(h/2)
+    vol_ewma : (n,) EWMA benchmark (lambda=0.94)
+    mu_h     : float, unconditional log-variance mean
+    """
+    n = len(r)
+    mu_h = 2 * np.log(r.std())
+    phi = 0.95
+    k = 2           # observation dimension
+    base_Q_h = 0.05
+
+    A1 = damped_osc_matrix(2 * np.pi / 30.0, 0.15)
+    A2 = damped_osc_matrix(2 * np.pi / 5.0, 0.35)
+
+    def fx(state, dt):
+        p1, v1, p2, v2, h = state
+        p1n, v1n = A1 @ np.array([p1, v1])
+        p2n, v2n = A2 @ np.array([p2, v2])
+        hn = mu_h + phi * (h - mu_h)
+        return np.array([p1n, v1n, p2n, v2n, hn])
+
+    def hx(state):
+        p1, _, p2, _, h = state
+        return np.array([p1 + p2, h - 1.27])
+
+    sp = MerweScaledSigmaPoints(n=5, alpha=1e-3, beta=2.0, kappa=0.0)
+    ukf = UnscentedKalmanFilter(
+        dim_x=5, dim_z=2, dt=DT, fx=fx, hx=hx, points=sp
+    )
+    ukf.x = np.array([0.0, 0.0, 0.0, 0.0, mu_h])
+    ukf.P = np.diag([1e-4, 1e-4, 1e-4, 1e-4, 0.1])
+    base_Q = np.diag([1e-6, 1e-5, 1e-5, 1e-4, base_Q_h])
+
+    states = np.zeros((n, 5))
+    lambda_q = 1.0  # initialise with no inflation
+
+    for t in range(n):
+        h_est = ukf.x[4]
+        ukf.R = np.array([
+            [np.exp(h_est), 0.0],
+            [0.0, np.pi ** 2 / 2.0],
+        ])
+
+        Q_eff = base_Q.copy()
+        Q_eff[4, 4] = base_Q_h / max(lambda_q, 0.05)
+        ukf.Q = Q_eff
+
+        ukf.predict()
+        z = np.array([r[t], np.log(r[t] ** 2 + 1e-8)])
+        ukf.update(z)
+
+        # VB update: adapt lambda_q for next step from this step's innovation
+        mah = float(ukf.y @ np.linalg.solve(ukf.S, ukf.y))
+        lambda_q = (nu_q + k) / (nu_q + mah)
+
+        states[t] = ukf.x
+
+    vol_hp = np.exp(states[:, 4] / 2)
+
+    lam = 0.94
+    vol_ewma = np.zeros(n)
+    vol_ewma[0] = r.std()
+    for t in range(1, n):
+        vol_ewma[t] = np.sqrt(
+            lam * vol_ewma[t - 1] ** 2 + (1 - lam) * r[t - 1] ** 2
+        )
+
+    return states, vol_hp, vol_ewma, mu_h
+
+
 def run_student_t_filter(r, nu=5, n_iter=8):
     """
     5-state UKF with Student-t observation noise via variational Bayes.

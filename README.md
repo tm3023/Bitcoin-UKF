@@ -181,17 +181,56 @@ The 28.9-day and 5.1-day cycle periods are not imposed: they are identified from
 
 ---
 
-## Model Comparison: Gaussian UKF versus Student-t Observation Noise
+## Model Comparison: Gaussian UKF versus Tail-Noise Extensions
 
-A variational-Bayes (VB) extension replacing Gaussian observation noise with a Student-t distribution was implemented (`run_student_t_filter` in `btc_modal.py`) and evaluated via grid search over nu in {3, ..., 15}.
+The Gaussian UKF's squared-innovation ACF showed a statistically significant lag-1 autocorrelation of approximately 0.18, indicating residual ARCH structure. Two extensions were evaluated to address this.
+
+### Student-t observation noise (VB filter)
+
+A variational-Bayes extension replacing Gaussian observation noise with a Student-t distribution was implemented (`run_student_t_filter` in `btc_modal.py`) and evaluated via grid search over nu in {3, ..., 15}.
 
 ![Gaussian vs Student-t Comparison](plots/comparison.png)
 
 **Plot description:** Top-left compares out-of-sample volatility estimates from both models. Top-right shows the innovation distributions against their theoretical reference. Bottom-left is a QQ plot (Gaussian kurtosis 4.68 versus Student-t kurtosis 6.13). Bottom-right is a downside VaR calibration diagnostic in which bar heights should match the expected level if the model is correctly specified.
 
-**Result:** The Student-t extension worsened all out-of-sample metrics. Innovation kurtosis *increased* from 4.68 to 6.13 at the optimal nu=15. The explanation is that BTC's fat tails arise from genuine volatility regime shifts rather than measurement noise. The VB mechanism downweights large observations as noise, which prevents the filter from updating the log-variance state during its most informative observations. The appropriate correction is in the **process noise** distribution (heavier-tailed transitions on `h_t`) or via an explicit jump component, not in the observation model.
+**Result:** The Student-t observation noise extension worsened all out-of-sample metrics. Innovation kurtosis *increased* from 4.68 to 6.13 at the optimal nu=15. The mechanism is counterproductive: BTC's fat-tailed returns arise from genuine volatility regime shifts, not measurement noise. The VB mechanism interprets large observations as noise and downweights them, which reduces the Kalman gain precisely when the filter most needs to update `h_t`. Lag-1 ACF of squared innovations did not improve.
 
-See `compare_models.py` for the full comparison.
+The diagnosis pointed to the process noise as the correct place for heavier tails, not the observation model.
+
+---
+
+### Student-t process noise (adaptive Q)
+
+A second extension (`run_heavy_process_filter` in `btc_modal.py`) applies the VB scale-mixture approach to the process noise on `h_t` rather than the observation noise. At each step the process noise variance on `h_t` is scaled by `1 / lambda_q`, where:
+
+```
+lambda_q = (nu_q + k) / (nu_q + v' S^{-1} v)
+```
+
+`v` is the observation innovation vector, `S` its covariance, and `k=2` the observation dimension. Large innovations (large Mahalanobis distance) produce small `lambda_q`, inflating `Q[4,4]` and allowing the filter to make larger, more abrupt updates to `h_t`. This is the correct direction: use surprising observations as evidence of a volatility regime jump, not as noise to suppress.
+
+![Process Noise Comparison](plots/process_noise_comparison.png)
+
+**Plot description:** Top-left compares ACF of squared innovations for Gaussian versus heavy-process noise at the best nu_q. Top-right shows OOS conditional volatility estimates. Bottom-left is a QQ plot. Bottom-right shows the grid search: QLIKE and ACF(z^2) lag-1 versus nu_q, with Gaussian baselines marked.
+
+**Results (grid search over nu_q in {3, 5, 7, 10, 15}, best at nu_q=3):**
+
+| Metric | Gaussian UKF | Heavy-Process (nu_q=3) |
+|--------|:-:|:-:|
+| MAE | 0.0130 | 0.0131 |
+| QLIKE | -6.725 | **-6.731** |
+| Corr(sigma, abs-r) | 0.404 | **0.415** |
+| Innovation kurtosis | 4.70 | **4.57** |
+| ACF(z^2) lag-1 | 0.181 | **0.177** |
+
+The heavy-process extension improves every metric except MAE, which is unchanged. The lag-1 ACF of squared innovations falls from 0.181 to 0.177, a reduction of 0.004. Both values remain above the 95% significance threshold of 0.046, so residual ARCH structure persists.
+
+**Interpretation:** The process noise extension is moving in the right direction: kurtosis decreases (better tail calibration), QLIKE improves (better probabilistic calibration), and Corr rises (better regime tracking). However the ARCH reduction is modest. The remaining clustering in squared residuals likely reflects two effects that a daily-frequency model with AR(1) log-variance cannot fully capture regardless of noise distribution:
+
+1. **Intraday jump clustering.** A single large move within a day is often followed by elevated realised variance over the next several hours, which only appears in daily data as the following day's squared return. Intraday realised variance as the second observation would give the filter a direct high-frequency signal on `h_t`.
+2. **Leverage and asymmetry.** Negative returns tend to raise volatility more than positive returns of equal magnitude. The symmetric AR(1) log-variance model does not capture this.
+
+See `compare_models.py` and `compare_process_noise.py` for the full comparisons.
 
 ---
 
@@ -300,6 +339,16 @@ signal_t = -sign(r_t / sigma_6ukf_t)   if all four conditions hold   else 0
 
 ---
 
+### Market Context
+
+The out-of-sample period covers approximately December 2024 to June 2026. BTC entered this window near its all-time high following the post-US election rally, reaching a peak of approximately $109,000 in January 2025. A significant drawdown of approximately 30% followed in Q1 2025, and subsequent performance was mixed through mid-2026. The net buy-and-hold return over the full OOS period was -9.1% annualised; starting from peak levels with a sharp early correction dragged down the passive return.
+
+In this environment Strategy B returned +5.0% annualised, a difference of approximately 14 percentage points relative to an unhedged BTC position. This is achieved with a maximum drawdown of -4.2% versus -32.7% for buy-and-hold, which reflects the strategy being out of the market for the great majority of the OOS period (active on 10.4% of days). The strategy is not a substitute for a directional BTC view; it generates independent returns from short-term mean reversion in quiet market conditions.
+
+The recent 90-day window (approximately March to June 2026) was unfavourable. BTC showed sustained trending behaviour during this period, and the vol regime filter correctly suppressed signals (5 trade days versus 10 for Strategy A). Both strategies were directionally correct only one-third of the time in this window, consistent with momentum dominating over mean reversion when BTC is in a trend phase.
+
+---
+
 ### Performance: Full OOS Period (548 trading days)
 
 | Metric | BTC Buy-and-Hold | A: Rolling z-score | B: 5-state UKF | C: 6-state UKF |
@@ -401,7 +450,8 @@ Directions that would strengthen statistical power and potentially signal qualit
 ├── btc_modal.py                # 5-state and 6-state UKF; Student-t VB filter
 ├── mle_ped.py                  # MLE via prediction error decomposition
 ├── benchmark_garch.py          # GARCH(1,1), EGARCH, GJR-GARCH versus UKF
-├── compare_models.py           # Gaussian versus Student-t UKF comparison
+├── compare_models.py           # Gaussian versus Student-t observation noise
+├── compare_process_noise.py    # Gaussian versus Student-t process noise on h_t
 ├── make_plots.py               # Regenerate all plots from live data
 ├── mean_reversion_backtest.py  # Three-strategy mean reversion backtest (A/B/C)
 ├── data_loader.py              # yfinance loader with USE_REAL_DATA toggle
@@ -431,6 +481,16 @@ python mle_ped.py
 **Run GARCH benchmark:**
 ```bash
 python benchmark_garch.py
+```
+
+**Run Gaussian versus Student-t observation noise comparison:**
+```bash
+python compare_models.py
+```
+
+**Run Gaussian versus Student-t process noise comparison:**
+```bash
+python compare_process_noise.py
 ```
 
 **Run mean reversion backtest (A/B/C):**

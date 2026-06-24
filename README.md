@@ -195,8 +195,6 @@ A variational-Bayes extension replacing Gaussian observation noise with a Studen
 
 **Result:** The Student-t observation noise extension worsened all out-of-sample metrics. Innovation kurtosis *increased* from 4.68 to 6.13 at the optimal nu=15. The mechanism is counterproductive: BTC's fat-tailed returns arise from genuine volatility regime shifts, not measurement noise. The VB mechanism interprets large observations as noise and downweights them, which reduces the Kalman gain precisely when the filter most needs to update `h_t`. Lag-1 ACF of squared innovations did not improve.
 
-The diagnosis pointed to the process noise as the correct place for heavier tails, not the observation model.
-
 ---
 
 ### Student-t process noise (adaptive Q)
@@ -207,7 +205,7 @@ A second extension (`run_heavy_process_filter` in `btc_modal.py`) applies the VB
 lambda_q = (nu_q + k) / (nu_q + v' S^{-1} v)
 ```
 
-`v` is the observation innovation vector, `S` its covariance, and `k=2` the observation dimension. Large innovations (large Mahalanobis distance) produce small `lambda_q`, inflating `Q[4,4]` and allowing the filter to make larger, more abrupt updates to `h_t`. This is the correct direction: use surprising observations as evidence of a volatility regime jump, not as noise to suppress.
+`v` is the observation innovation vector, `S` its covariance, and `k=2` the observation dimension. Large innovations (large Mahalanobis distance) produce small `lambda_q`, inflating `Q[4,4]` and allowing the filter to make larger, more abrupt updates to `h_t`.
 
 ![Process Noise Comparison](plots/process_noise_comparison.png)
 
@@ -225,7 +223,7 @@ lambda_q = (nu_q + k) / (nu_q + v' S^{-1} v)
 
 The heavy-process extension improves every metric except MAE, which is unchanged. The lag-1 ACF of squared innovations falls from 0.181 to 0.177, a reduction of 0.004. Both values remain above the 95% significance threshold of 0.046, so residual ARCH structure persists.
 
-**Interpretation:** The process noise extension is moving in the right direction: kurtosis decreases (better tail calibration), QLIKE improves (better probabilistic calibration), and Corr rises (better regime tracking). However the ARCH reduction is modest. The remaining clustering in squared residuals likely reflects two effects that a daily-frequency model with AR(1) log-variance cannot fully capture regardless of noise distribution:
+**Interpretation:** The process noise extension is moving in the right direction: kurtosis decreases (better tail calibration), QLIKE improves (better probabilistic calibration) and Corr rises (better regime tracking). However the ARCH reduction is modest. The remaining clustering in squared residuals likely reflects two effects that a daily-frequency model with AR(1) log-variance cannot fully capture regardless of noise distribution:
 
 1. **Intraday jump clustering.** A single large move within a day is often followed by elevated realised variance over the next several hours, which only appears in daily data as the following day's squared return. Intraday realised variance as the second observation would give the filter a direct high-frequency signal on `h_t`.
 2. **Leverage and asymmetry.** Negative returns tend to raise volatility more than positive returns of equal magnitude. The symmetric AR(1) log-variance model does not capture this.
@@ -341,11 +339,11 @@ signal_t = -sign(r_t / sigma_6ukf_t)   if all four conditions hold   else 0
 
 ### Market Context
 
-The out-of-sample period covers approximately December 2024 to June 2026. BTC entered this window near its all-time high following the post-US election rally, reaching a peak of approximately $109,000 in January 2025. A significant drawdown of approximately 30% followed in Q1 2025, and subsequent performance was mixed through mid-2026. The net buy-and-hold return over the full OOS period was -9.1% annualised; starting from peak levels with a sharp early correction dragged down the passive return.
+The out-of-sample period covers approximately December 2024 to June 2026. BTC entered this window near its all-time high following the post-US election rally, reaching a peak of approximately $109,000 in January 2025. A significant drawdown of approximately 30% followed in Q1 2025 and subsequent performance was mixed through mid-2026. The net buy-and-hold return over the full OOS period was -9.1% annualised; starting from peak levels with a sharp early correction dragged down the passive return.
 
 In this environment Strategy B returned +5.0% annualised, a difference of approximately 14 percentage points relative to an unhedged BTC position. This is achieved with a maximum drawdown of -4.2% versus -32.7% for buy-and-hold, which reflects the strategy being out of the market for the great majority of the OOS period (active on 10.4% of days). The strategy is not a substitute for a directional BTC view; it generates independent returns from short-term mean reversion in quiet market conditions.
 
-The recent 90-day window (approximately March to June 2026) was unfavourable. BTC showed sustained trending behaviour during this period, and the vol regime filter correctly suppressed signals (5 trade days versus 10 for Strategy A). Both strategies were directionally correct only one-third of the time in this window, consistent with momentum dominating over mean reversion when BTC is in a trend phase.
+The recent 90-day window (approximately March to June 2026) was unfavourable. BTC showed sustained trending behaviour during this period and the vol regime filter correctly suppressed signals (5 trade days versus 10 for Strategy A). Both strategies were directionally correct only one-third of the time in this window, consistent with momentum dominating over mean reversion when BTC is in a trend phase.
 
 ---
 

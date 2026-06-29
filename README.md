@@ -193,7 +193,7 @@ A variational-Bayes extension replacing Gaussian observation noise with a Studen
 
 **Plot description:** Top-left compares out-of-sample volatility estimates from both models. Top-right shows the innovation distributions against their theoretical reference. Bottom-left is a QQ plot (Gaussian kurtosis 4.68 versus Student-t kurtosis 6.13). Bottom-right is a downside VaR calibration diagnostic in which bar heights should match the expected level if the model is correctly specified.
 
-**Result:** The Student-t observation noise extension worsened all out-of-sample metrics. Innovation kurtosis *increased* from 4.68 to 6.13 at the optimal nu=15. The mechanism is counterproductive: BTC's fat-tailed returns arise from genuine volatility regime shifts, not measurement noise. The VB mechanism interprets large observations as noise and downweights them, which reduces the Kalman gain precisely when the filter most needs to update `h_t`. Lag-1 ACF of squared innovations did not improve.
+**Result:** The Student-t observation noise extension worsened all out-of-sample metrics. Innovation kurtosis *increased* from 4.68 to 6.13 at the optimal nu=15. The mechanism is counterproductive: BTC's fat-tailed returns arise from volatility regime shifts, not measurement noise. The VB mechanism interprets large observations as noise and downweights them, which reduces the Kalman gain precisely when the filter most needs to update `h_t`. Lag-1 ACF of squared innovations did not improve.
 
 ---
 

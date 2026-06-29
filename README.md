@@ -273,7 +273,7 @@ This is the most consequential filter. In equity markets, mean reversion is freq
 
 **Condition 2: UKF z-score (`|r_t / sigma_{t-1}| > 1.5`)**
 
-The return is standardised by the UKF's conditional volatility estimate from the previous day rather than by a rolling window. The UKF estimate updates more rapidly at regime transitions, making the resulting z-score a more accurate measure of genuine overextension.
+The return is standardised by the UKF's conditional volatility estimate from the previous day rather than by a rolling window. The UKF estimate updates more rapidly at regime transitions, making the resulting z-score a more accurate measure of overextension.
 
 **Condition 3: Cycle alignment (`sign(p2_{t-1}) == sign(r_t)`)**
 

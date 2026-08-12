@@ -22,7 +22,7 @@ This project evaluates whether a probabilistic state-space model, estimated by m
 
 ## Model Overview
 
-A Kalman filter is a recursive estimator for latent quantities that are not directly observed but whose relationship to observable data is specified. At each time step it balances its prior prediction against the new observation, updating its estimate in proportion to how informative the observation is relative to the prediction uncertainty. The Unscented variant propagates a deterministic set of sigma points through the nonlinear observation function rather than linearising, which avoids the approximation error of the Extended Kalman Filter and requires no Jacobian computation.
+A Kalman filter is a recursive estimator for latent quantities that are not directly observed but whose relationship to observable data is specified. At each time step it balances its prior prediction against the new observation, updating its estimate in proportion to how informative the observation is relative to the prediction uncertainty. The Unscented variant ([Julier & Uhlmann, 1997](#references); [Wan & van der Merwe, 2000](#references)) propagates a deterministic set of sigma points through the nonlinear observation function rather than linearising, which avoids the approximation error of the Extended Kalman Filter and requires no Jacobian computation.
 
 The latent states estimated at each time step are:
 
@@ -86,7 +86,7 @@ The Corr metric is the most practically significant. Accurately ranking the *tim
 
 ![Diagnostics](plots/diagnostics.png)
 
-**Left (QQ plot):** Under correct specification, standardised innovations should follow a standard normal distribution, placing all points on the reference line. The distribution is approximately normal with mild excess kurtosis (4.7 versus 3.0 for a Gaussian). This is consistent with the known leptokurtosis of cryptocurrency returns and does not indicate model misspecification.
+**Left (QQ plot):** Under correct specification, standardised innovations should follow a standard normal distribution, placing all points on the reference line. The distribution is approximately normal with mild excess kurtosis (4.7 versus 3.0 for a Gaussian). Two effects contribute: the known leptokurtosis of cryptocurrency returns, and the QML approximation of `log(chi^2(1))` as Gaussian in the dual-observation design (see [Dual-observation design](#dual-observation-design)), which understates the true left skew of that noise term. Neither indicates model misspecification.
 
 **Middle (ACF of innovations):** Autocorrelations of the standardised innovations at each lag. Values within the dashed confidence bands are not statistically distinguishable from zero. Mild negative autocorrelation at short lags suggests slight over-correction by the filter, but no persistent structure is evident.
 
@@ -140,18 +140,18 @@ With the estimated phi = 0.949, the half-life of a volatility shock is approxima
 
 ### Dual-observation design
 
-A single return observation leaves the log-variance state structurally unidentifiable: infinitely many (cycle, volatility) combinations are consistent with any observed return. The observation vector is therefore augmented with a log-realised-variance proxy using the Harvey, Ruiz and Shephard (1994) log-linearisation:
+A single return observation leaves the log-variance state structurally unidentifiable: infinitely many (cycle, volatility) combinations are consistent with any observed return. The observation vector is therefore augmented with a log-realised-variance proxy using the Harvey, Ruiz and Shephard ([1994](#references)) log-linearisation:
 
 ```
 z1  =  p1 + p2 + eps_t,     eps_t ~ N(0, exp(h_t))       [daily log-return]
 z2  approx  h_t - 1.27 + eta_t,  eta_t ~ N(0, pi^2/2)    [log(r_t^2) proxy]
 ```
 
-The second observation uses the identity `log(r_t^2) = h_t + log(eps_t^2)`, where `log(chi^2(1))` has known mean -1.27 and variance pi^2/2. This provides the filter with an independent signal on `h_t` using only daily close-to-close data, restoring identifiability without requiring intraday observations.
+The second observation uses the identity `log(r_t^2) = h_t + log(eps_t^2)`, where `log(chi^2(1))` has known mean -1.27 and variance pi^2/2. Treating `eta_t` as Gaussian is an approximation: `log(chi^2(1))` is strongly left-skewed, not normal, so this is a quasi-maximum-likelihood (QML) match of the first two moments rather than an exact distributional statement ([Ruiz, 1994](#references); [Harvey, Ruiz & Shephard, 1994](#references)). This is the standard approach in the stochastic volatility literature and provides the filter with an independent signal on `h_t` using only daily close-to-close data, restoring identifiability without requiring intraday observations — but it is also a contributing source of the excess kurtosis in the filter's innovations (see QQ plot discussion below).
 
 ### MLE parameter fitting
 
-Structural parameters `(T_slow, zeta_slow, T_fast, zeta_fast, phi, log_qh)` are estimated by maximising the exact log-likelihood via Harvey's (1989) Prediction Error Decomposition (PED). The filter produces innovations and their predicted covariances at each step, making the Gaussian likelihood tractable in closed form. Optimisation uses L-BFGS-B; parameter standard errors are obtained from the numerical Hessian evaluated at the optimum.
+Structural parameters `(T_slow, zeta_slow, T_fast, zeta_fast, phi, log_qh)` are estimated by maximising the exact log-likelihood via the Prediction Error Decomposition (PED), following [Harvey (1989)](#references). The filter produces innovations and their predicted covariances at each step, making the Gaussian likelihood tractable in closed form. Optimisation uses L-BFGS-B; parameter standard errors are obtained from the numerical Hessian evaluated at the optimum.
 
 **Estimated parameters (five-year BTC-USD history, 1,826 observations):**
 
@@ -523,3 +523,13 @@ Dependencies: `filterpy`, `numpy`, `scipy`, `matplotlib`, `yfinance`, `arch`, `j
 ## Background
 
 This project was developed as a personal research exercise in applying state-space methods to cryptocurrency markets. The identifiability problem and its dual-observation resolution are discussed in detail in the accompanying notebook. The GARCH benchmark and Student-t filter comparison provide quantitative context for the UKF's performance relative to established alternatives. The mean-reversion backtest in Part 2 is a natural extension: the UKF's latent states are candidate alpha signals and this section evaluates that hypothesis on out-of-sample data.
+
+---
+
+## References
+
+- Harvey, A. C. (1989). *Forecasting, Structural Time Series Models and the Kalman Filter*. Cambridge University Press.
+- Harvey, A., Ruiz, E., & Shephard, N. (1994). Multivariate Stochastic Variance Models. *Review of Economic Studies*, 61(2), 247–264.
+- Ruiz, E. (1994). Quasi-maximum likelihood estimation of stochastic volatility models. *Journal of Econometrics*, 63(1), 289–306.
+- Julier, S. J., & Uhlmann, J. K. (1997). New extension of the Kalman filter to nonlinear systems. *Proceedings of SPIE*, Vol. 3068, Signal Processing, Sensor Fusion, and Target Recognition VI.
+- Wan, E. A., & van der Merwe, R. (2000). The unscented Kalman filter for nonlinear estimation. *Proceedings of the IEEE Adaptive Systems for Signal Processing, Communications, and Control Symposium (AS-SPCC)*, 153–158.

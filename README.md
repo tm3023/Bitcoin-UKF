@@ -528,8 +528,16 @@ This project was developed as a personal research exercise in applying state-spa
 
 ## References
 
-- Harvey, A. C. (1989). *Forecasting, Structural Time Series Models and the Kalman Filter*. Cambridge University Press.
-- Harvey, A., Ruiz, E., & Shephard, N. (1994). Multivariate Stochastic Variance Models. *Review of Economic Studies*, 61(2), 247–264.
-- Ruiz, E. (1994). Quasi-maximum likelihood estimation of stochastic volatility models. *Journal of Econometrics*, 63(1), 289–306.
-- Julier, S. J., & Uhlmann, J. K. (1997). New extension of the Kalman filter to nonlinear systems. *Proceedings of SPIE*, Vol. 3068, Signal Processing, Sensor Fusion, and Target Recognition VI.
-- Wan, E. A., & van der Merwe, R. (2000). The unscented Kalman filter for nonlinear estimation. *Proceedings of the IEEE Adaptive Systems for Signal Processing, Communications, and Control Symposium (AS-SPCC)*, 153–158.
+- Agamennoni, G., Nieto, J. I., & Nebot, E. M. (2012). Approximate inference in state-space models with heavy-tailed noise. *IEEE Transactions on Signal Processing*, 60(10), 5024–5037. https://doi.org/10.1109/TSP.2012.2208106
+- Bollerslev, T. (1986). Generalized autoregressive conditional heteroskedasticity. *Journal of Econometrics*, 31(3), 307–327. https://doi.org/10.1016/0304-4076(86)90063-1
+- Glosten, L. R., Jagannathan, R., & Runkle, D. E. (1993). On the relation between the expected value and the volatility of the nominal excess return on stocks. *Journal of Finance*, 48(5), 1779–1801. https://doi.org/10.1111/j.1540-6261.1993.tb05128.x
+- Harvey, A. C. (1989). *Forecasting, Structural Time Series Models and the Kalman Filter*. Cambridge University Press. https://doi.org/10.1017/CBO9781107049994
+- Harvey, A., Ruiz, E., & Shephard, N. (1994). Multivariate Stochastic Variance Models. *Review of Economic Studies*, 61(2), 247–264. https://doi.org/10.2307/2297980
+- J.P. Morgan/Reuters (1996). *RiskMetrics: Technical Document* (4th ed.). New York: J.P. Morgan. https://www.msci.com/documents/10199/5915b101-4206-4ba0-aee2-3449d5c7e95a
+- Julier, S. J., & Uhlmann, J. K. (1997). New extension of the Kalman filter to nonlinear systems. *Proceedings of SPIE*, Vol. 3068, Signal Processing, Sensor Fusion, and Target Recognition VI, 182–193. https://doi.org/10.1117/12.280797
+- Julier, S. J., & Uhlmann, J. K. (2004). Unscented filtering and nonlinear estimation. *Proceedings of the IEEE*, 92(3), 401–422. https://doi.org/10.1109/JPROC.2003.823141
+- Kalman, R. E. (1960). A new approach to linear filtering and prediction problems. *Journal of Basic Engineering*, 82(1), 35–45. https://doi.org/10.1115/1.3662552
+- Nelson, D. B. (1991). Conditional heteroskedasticity in asset returns: A new approach. *Econometrica*, 59(2), 347–370. https://doi.org/10.2307/2938260
+- Patton, A. J. (2011). Volatility forecast comparison using imperfect volatility proxies. *Journal of Econometrics*, 160(1), 246–256. https://doi.org/10.1016/j.jeconom.2010.03.034
+- Ruiz, E. (1994). Quasi-maximum likelihood estimation of stochastic volatility models. *Journal of Econometrics*, 63(1), 289–306. https://doi.org/10.1016/0304-4076(93)01569-8
+- Wan, E. A., & van der Merwe, R. (2000). The unscented Kalman filter for nonlinear estimation. *Proceedings of the IEEE Adaptive Systems for Signal Processing, Communications, and Control Symposium (AS-SPCC)*, 153–158. https://doi.org/10.1109/ASSPCC.2000.882463

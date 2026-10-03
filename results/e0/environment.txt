@@ -1,0 +1,8 @@
+python 3.13.4
+numpy 2.4.3
+pandas 2.2.3
+scipy 1.17.1
+filterpy 1.4.5
+matplotlib 3.10.9
+yfinance 1.4.1
+data cache data\btc_usd_close_2021-10-02_2026-10-02.csv

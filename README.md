@@ -230,6 +230,39 @@ The heavy-process extension improves every metric except MAE, which is unchanged
 
 See `compare_models.py` and `compare_process_noise.py` for the full comparisons.
 
+## Innovation Diagnostics: One-Step Innovations and NIS
+
+`diagnostics.py` checks the base 5-state UKF's Gaussian assumptions with the filter's own **one-step-ahead innovations**. These are the innovation `v_t` and its predicted covariance `S_t` from the UKF prior, before the day's update. The "standardised innovations" in Plots 1 and 3 above instead divide the *post-update* residual by the filtered volatility, which slightly understates misspecification.
+
+**Data window.** Fixed at 2021-10-02 to 2026-10-02 (1,826 daily returns), cached in `data/` (gitignored), so that results do not move with the download date. The other scripts download a rolling 5-year window. The script replays `run_base_filter` step by step and asserts that it reproduces the same filtered states.
+
+**Tests** (first 50 days excluded as burn-in):
+- per-channel standardised innovations `v_t[i] / sqrt(S_t[ii])`: skewness, excess kurtosis, Jarque–Bera test, QQ plot against N(0,1);
+- normalised innovation squared `NIS_t = v_t' S_t^-1 v_t`, which is chi-squared with 2 degrees of freedom under the model, with the share of days outside the 95% band and binomial tests;
+- the same exceedance rate on high-volatility days (top decile of 30-day realised volatility) versus all other days.
+
+**Results** (`results/e0/summary.md`):
+
+| Series | Skewness | Excess kurtosis | Jarque–Bera p |
+|---|---|---|---|
+| Return channel innovation | 0.17 | **2.22** | 3.7e-82 |
+| log(r^2) channel innovation | -0.82 | 0.75 | 1.3e-52 |
+| *log chi^2(1) reference (correct model, channel 2)* | *-1.54* | *4.00* | |
+| Post-update residual (Plots 1 and 3) | 0.18 | 1.85 | 8.9e-58 |
+
+| NIS | Mean (expected) | Below / above the 95% band (expected 2.5% each) | Binomial p (below / above) |
+|---|---|---|---|
+| Joint (chi^2, 2 df) | 2.23 (2) | 2.8% / **6.0%** | 0.40 / 1.6e-15 |
+| Return channel (chi^2, 1 df) | 1.03 (1) | 3.3% / 4.0% | 0.048 / 1.8e-4 |
+
+Joint NIS falls outside its 95% band on 10.6% of high-volatility days and 8.6% of other days.
+
+![Innovation QQ plots](results/e0/qq.png)
+
+![NIS timeline](results/e0/nis_timeline.png)
+
+**Interpretation.** The return channel is the direct test of the Gaussian return-noise assumption, and it fails clearly: heavy tails on both sides, and large innovations occur about 2.4 times as often as the model allows. The failure is spread across the sample rather than confined to stress episodes (FTX, SVB/USDC, August 2024), so it reflects heavy tails generally rather than only regime breaks. The log(r^2) channel is non-Gaussian by construction, because its noise is log chi^2(1) and the QML approximation treats it as Gaussian. Its innovations are *less* skewed and heavy-tailed than that reference, so it does not add evidence against the model. Caveat: these diagnostics use the fixed-parameter base filter (`run_base_filter`), not the MLE-fitted parameters.
+
 ---
 
 # Part 2: Mean Reversion Signal Exploration
@@ -452,9 +485,11 @@ Directions that would strengthen statistical power and potentially signal qualit
 ├── compare_process_noise.py    # Gaussian versus Student-t process noise on h_t
 ├── make_plots.py               # Regenerate all plots from live data
 ├── mean_reversion_backtest.py  # Three-strategy mean reversion backtest (A/B/C)
+├── diagnostics.py              # One-step innovation and NIS diagnostics (fixed data window)
 ├── data_loader.py              # yfinance loader with USE_REAL_DATA toggle
 ├── ukf_bitcoin_mle.ipynb       # Self-contained notebook
 ├── plots/                      # Generated figures
+├── results/e0/                 # Diagnostics outputs (summary, QQ and NIS plots, environment)
 └── requirements.txt
 ```
 
@@ -494,6 +529,11 @@ python compare_process_noise.py
 **Run mean reversion backtest (A/B/C):**
 ```bash
 python mean_reversion_backtest.py
+```
+
+**Run innovation diagnostics** (fixed 2021-10-02 to 2026-10-02 window, cached to `data/`):
+```bash
+python diagnostics.py
 ```
 
 **Regenerate all plots from live data:**
